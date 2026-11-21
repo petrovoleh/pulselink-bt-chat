@@ -85,8 +85,8 @@ class PulseDatabaseHelper(context: Context) :
                 "text",
                 "👋 Ласкаво просимо в PulseLink!\n" +
                     "• 🔒 Автоматичне E2E шифрування (ECDH + AES-GCM) для особистих чатів.\n" +
-                    "• 📷 Чіткі фото 480px з камери або галереї + 📍 офлайн GPS координати та 🚨 SOS.\n" +
-                    "• 📡 Далекобійний Bluetooth 5 Extended Range (Coded PHY) + Selective-ACK через стіни."
+                    "• 📷 HD фото до 800px з високим бітрейтом + 🎨 стікери, 📍 офлайн GPS та 🚨 SOS.\n" +
+                    "• 📡 Далекобійний Bluetooth 5 Extended Range (Coded PHY) + швидкий 1M L2CAP."
             )
             put("timestamp", System.currentTimeMillis())
             put("is_outgoing", 0)

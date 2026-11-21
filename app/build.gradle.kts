@@ -8,13 +8,25 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.pulsegram.btchat"
+        applicationId = "com.pulselink.btchat"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystoreFile = rootProject.file("pulselink-release-key.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASS") ?: "PulseLink2026!"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "pulselink_key"
+                keyPassword = System.getenv("KEY_PASS") ?: "PulseLink2026!"
+            }
+        }
     }
 
     buildTypes {
@@ -24,7 +36,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            val keystoreFile = rootProject.file("pulselink-release-key.jks")
+            signingConfig = if (keystoreFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {

@@ -12,6 +12,7 @@ import com.pulsegram.btchat.model.ConversationSummary
 import com.pulsegram.btchat.model.EnergyStats
 import com.pulsegram.btchat.model.NearbyPeer
 import com.pulsegram.btchat.model.PowerPresetMode
+import com.pulsegram.btchat.model.PulseSticker
 import com.pulsegram.btchat.model.RadioConfig
 import com.pulsegram.btchat.model.RadioPulseState
 import com.pulsegram.btchat.service.PulseRadioService
@@ -141,6 +142,10 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
         engine.sendChatMessage(targetNodeId = conversationId, text = text)
     }
 
+    fun sendStickerMessage(conversationId: Int, sticker: PulseSticker) {
+        engine.sendChatMessage(targetNodeId = conversationId, text = sticker.wirePayload)
+    }
+
     fun sendLocationMessage(conversationId: Int, lat: Double, lon: Double) {
         val formatted = String.format(java.util.Locale.US, "LOC:%.5f,%.5f", lat, lon)
         engine.sendChatMessage(targetNodeId = conversationId, text = formatted)
@@ -157,13 +162,18 @@ class PulseViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Compresses a selected gallery or full-res camera photo URI (max side 480px, WebP Lossy + Zlib)
-     * and sends it as a chat message.
+     * Compresses a selected gallery or full-res camera photo URI up to 800px max side
+     * with high-bitrate WebP Lossy + Zlib (7.4 KB on Standard 1M / Both Bluetooth, 3.6 KB on pure LR Coded)
+     * and transmits via high-speed BLE L2CAP CoC or fast 1M Extended Advertising + Selective-ACK.
      */
     fun sendCompressedPhoto(conversationId: Int, imageUri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            val maxWebpBytes = 1850
-            val payload = UltraImageCompressor.compressUriTo480MaxPayload(
+            val maxWebpBytes = if (engine.config.value.phyMode == BtPhyMode.EXTENDED_CODED) {
+                UltraImageCompressor.EXTENDED_LR_MAX_BYTES
+            } else {
+                UltraImageCompressor.HIGH_BITRATE_1M_MAX_BYTES
+            }
+            val payload = UltraImageCompressor.compressUriTo800MaxPayload(
                 context = getApplication(),
                 uri = imageUri,
                 maxBytes = maxWebpBytes

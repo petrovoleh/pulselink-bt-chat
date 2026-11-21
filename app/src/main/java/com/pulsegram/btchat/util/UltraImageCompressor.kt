@@ -19,18 +19,20 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * 480px Max-Dimension Aspect-Ratio-Preserving Crisp WebP Lossy Image Compressor for PulseLink.
+ * 800px High-Bitrate Aspect-Ratio-Preserving Crisp WebP Lossy Image Compressor for PulseLink.
  *
- * - Keeps the original aspect ratio (portrait, landscape, or square) with the longest side up to 480px!
- * - Uses higher WebP quality (less compression / no blurriness) targeting ~1.6–2.0 KB
- *   (8–10 Extended packets, transmitted reliably via Selective-ACK chunk retransmission).
- * - Uses an in-memory [LruCache] so LazyColumn scrolling renders decoded photos at 120fps with zero jank.
+ * - Keeps the original aspect ratio (portrait, landscape, or square) with the longest side up to 800px!
+ * - Uses high-bitrate WebP quality (88%..42%) targeting ~6.5–7.5 KB on Standard 1M / Both Bluetooth
+ *   (transmitted via high-speed BLE L2CAP Direct Stream or fast 1M Extended Advertising + Selective-ACK).
+ * - Uses an in-memory [LruCache] so LazyColumn scrolling renders decoded 800px photos at 120fps with zero jank.
  */
 object UltraImageCompressor {
 
     const val PHOTO_PREFIX = "IMG1:"
     const val BIN_PHOTO_PREFIX = "IMGB:"
-    const val MAX_DISPLAY_DIMENSION = 480
+    const val MAX_DISPLAY_DIMENSION = 800
+    const val HIGH_BITRATE_1M_MAX_BYTES = 7400
+    const val EXTENDED_LR_MAX_BYTES = 3600
     private const val ZLIB_MAGIC_BYTE: Byte = 0x78
 
     private val decodedBitmapCache = LruCache<Int, Bitmap>(28)
@@ -42,23 +44,32 @@ object UltraImageCompressor {
     }
 
     /**
-     * Reads an image from [uri], fixes EXIF rotation, preserves aspect ratio with max side up to 480px,
-     * and compresses with crisp `WEBP_LOSSY` quality (less compression so details stay sharp!).
+     * Reads an image from [uri], fixes EXIF rotation, preserves aspect ratio with max side up to 800px,
+     * and compresses with high-bitrate `WEBP_LOSSY` quality (so 800px photos stay crystal clear!).
      */
+    fun compressUriTo800MaxPayload(
+        context: Context,
+        uri: Uri,
+        maxBytes: Int = HIGH_BITRATE_1M_MAX_BYTES
+    ): String? {
+        val originalBitmap = decodeSampledBitmap(context, uri, 1200) ?: return null
+        return compressBitmapTo800MaxPayload(originalBitmap, maxBytes)
+    }
+
     fun compressUriTo480MaxPayload(
         context: Context,
         uri: Uri,
-        maxBytes: Int = 1850
-    ): String? {
-        val originalBitmap = decodeSampledBitmap(context, uri, 800) ?: return null
-        return compressBitmapTo480MaxPayload(originalBitmap, maxBytes)
-    }
+        maxBytes: Int = HIGH_BITRATE_1M_MAX_BYTES
+    ): String? = compressUriTo800MaxPayload(context, uri, maxBytes)
 
     /**
-     * Compresses a [Bitmap] (from camera or gallery) preserving aspect ratio with longest side up to 480px
-     * and crisp WebP quality (starts at 480px with quality 65..22 before stepping down to 360px/300px).
+     * Compresses a [Bitmap] (from camera or gallery) preserving aspect ratio with longest side up to 800px
+     * and high-bitrate WebP quality (starts at 800px with quality 88%..52% before stepping down to 720px/640px).
      */
-    fun compressBitmapTo480MaxPayload(source: Bitmap, maxBytes: Int = 1850): String? {
+    fun compressBitmapTo800MaxPayload(
+        source: Bitmap,
+        maxBytes: Int = HIGH_BITRATE_1M_MAX_BYTES
+    ): String? {
         val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Bitmap.CompressFormat.WEBP_LOSSY
         } else {
@@ -66,9 +77,9 @@ object UltraImageCompressor {
             Bitmap.CompressFormat.WEBP
         }
 
-        // High sharpness priority: keep resolution at 480px..300px and avoid ultra-blurry <180px downscaling!
-        val candidateMaxSides = intArrayOf(480, 420, 360, 320, 280, 240)
-        val candidateQualities = intArrayOf(65, 50, 38, 28, 20, 14, 10)
+        // High-bitrate 800px priority: start at 800px with high WebP quality (88%..55%)
+        val candidateMaxSides = intArrayOf(800, 720, 640, 560, 480)
+        val candidateQualities = intArrayOf(88, 80, 72, 64, 56, 48, 40, 32)
 
         var bestBytes: ByteArray? = null
 
@@ -95,9 +106,14 @@ object UltraImageCompressor {
         return "$PHOTO_PREFIX$b64"
     }
 
+    fun compressBitmapTo480MaxPayload(
+        source: Bitmap,
+        maxBytes: Int = HIGH_BITRATE_1M_MAX_BYTES
+    ): String? = compressBitmapTo800MaxPayload(source, maxBytes)
+
     /**
-     * Decodes an `IMG1:` WebP payload back into a crisp [Bitmap] with longest side 480px
-     * and exact original aspect ratio, using an in-memory LRU cache to prevent UI scroll jank!
+     * Decodes an `IMG1:` WebP payload back into a crisp [Bitmap] up to 800px max side
+     * with exact original aspect ratio, using an in-memory LRU cache to prevent UI scroll jank!
      */
     fun decodePayloadToBitmap(payload: String): Bitmap? {
         if (!isPhotoPayload(payload)) return null
@@ -127,7 +143,11 @@ object UltraImageCompressor {
 
             val imageBytes = inflateIfNeeded(rawBytes)
             val decoded = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size) ?: return null
-            scalePreservingAspectRatio(decoded, MAX_DISPLAY_DIMENSION)
+            if (max(decoded.width, decoded.height) > MAX_DISPLAY_DIMENSION) {
+                scalePreservingAspectRatio(decoded, MAX_DISPLAY_DIMENSION)
+            } else {
+                decoded
+            }
         }.getOrNull()
 
         if (bitmap != null) {

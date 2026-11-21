@@ -63,8 +63,9 @@ class PulseCryptoManager(context: Context) {
      * Registers a 33-byte compressed SEC1 P-256 public key received from [peerNodeId]
      * and derives the ECDH shared secret key.
      */
-    fun registerPeerPublicKey(peerNodeId: Int, compressedKey: ByteArray): Boolean {
-        if (compressedKey.size != 33) return false
+    fun registerPeerPublicKey(peerNodeId: Int, rawPayload: ByteArray): Boolean {
+        if (rawPayload.size < 33) return false
+        val compressedKey = if (rawPayload.size == 33) rawPayload else rawPayload.copyOfRange(0, 33)
         val prefix = compressedKey[0].toInt() and 0xFF
         if (prefix != 0x02 && prefix != 0x03) return false
 

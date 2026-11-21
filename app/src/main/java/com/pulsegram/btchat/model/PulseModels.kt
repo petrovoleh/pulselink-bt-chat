@@ -140,7 +140,8 @@ data class NearbyPeer(
     val peerSupportsCoded: Boolean,
     val lastSeenTimestamp: Long,
     val packetsReceivedCount: Int = 1,
-    val hasEncryptionKey: Boolean = false
+    val hasEncryptionKey: Boolean = false,
+    val l2capPsm: Int = 0
 ) {
     val detectedPhySummary: String
         get() = when {
@@ -215,6 +216,16 @@ data class ChatMessage(
     val isSosMessage: Boolean
         get() = text.startsWith(SOS_PREFIX)
 
+    val isStickerMessage: Boolean
+        get() = text.startsWith(STICKER_PREFIX)
+
+    val parsedSticker: PulseSticker?
+        get() {
+            if (!isStickerMessage) return null
+            val code = text.removePrefix(STICKER_PREFIX).trim()
+            return PulseSticker.fromCode(code)
+        }
+
     val parsedCoordinates: Pair<Double, Double>?
         get() {
             if (!isLocationMessage) return null
@@ -227,7 +238,11 @@ data class ChatMessage(
 
     val previewText: String
         get() = when {
-            isPhotoMessage -> "📷 Фото"
+            isPhotoMessage -> "📷 HD Фото (800px)"
+            isStickerMessage -> {
+                val stk = parsedSticker
+                if (stk != null) "${stk.emoji} Стікер «${stk.title}»" else "🎨 Стікер"
+            }
             isLocationMessage -> "📍 Геолокація (офлайн GPS)"
             isSosMessage -> "🚨 SOS: ${text.removePrefix(SOS_PREFIX).trim()}"
             else -> text
@@ -236,6 +251,45 @@ data class ChatMessage(
     companion object {
         const val LOCATION_PREFIX = "LOC:"
         const val SOS_PREFIX = "SOS:"
+        const val STICKER_PREFIX = "STK:"
+    }
+}
+
+/**
+ * Built-in Ultra-Compact Graphic Sticker Pack for PulseLink.
+ * Transmitted over Bluetooth in a single 12-byte packet (`STK:<code>`) and rendered
+ * as a large 150x150dp vector/canvas artwork card in the chat!
+ */
+enum class PulseSticker(
+    val code: String,
+    val emoji: String,
+    val title: String,
+    val colorStart: Long,
+    val colorEnd: Long
+) {
+    RADAR_PING("RADAR_PING", "📡", "На зв'язку!", 0xFF0D9488, 0xFF115E59),
+    ROGER_THAT("ROGER_THAT", "🫡", "Прийнято! +", 0xFF14B8A6, 0xFF0F766E),
+    SUPER_FIRE("SUPER_FIRE", "🔥", "Вогонь!", 0xFFF97316, 0xFFB91C1C),
+    WALL_BREAKER("WALL_BREAKER", "⚡", "Пробиває стіни!", 0xFF8B5CF6, 0xFF4C1D95),
+    HEART_THANKS("HEART_THANKS", "💚", "Дякую!", 0xFF10B981, 0xFF047857),
+    PARTY_ROCKET("PARTY_ROCKET", "🚀", "Полетіли!", 0xFF3B82F6, 0xFF1D4ED8),
+    LAUGH_TEARS("LAUGH_TEARS", "😂", "Ха-ха-ха!", 0xFFEAB308, 0xFFB45309),
+    STEALTH_E2EE("STEALTH_E2EE", "🔒", "Секретно E2EE", 0xFF06B6D4, 0xFF0E7490),
+    COFFEE_TIME("COFFEE_TIME", "☕", "Час на каву", 0xFFD97706, 0xFF78350F),
+    LOCATION_HERE("LOCATION_HERE", "📍", "Я на місці!", 0xFF22C55E, 0xFF15803D),
+    BATTERY_FULL("BATTERY_FULL", "🔋", "Заряд 100%", 0xFF84CC16, 0xFF3F6212),
+    SHIELD_SAFE("SHIELD_SAFE", "🛡️", "Все чисто!", 0xFF38BDF8, 0xFF0369A1),
+    EYES_WATCH("EYES_WATCH", "👀", "Бачу тебе", 0xFFA855F7, 0xFF6B21A8),
+    THUMBS_DEAL("THUMBS_DEAL", "👍", "Домовились!", 0xFF2DD4BF, 0xFF0F766E),
+    NIGHT_OWL("NIGHT_OWL", "🦉", "Нічний ефір", 0xFF6366F1, 0xFF312E81),
+    SOS_URGENT("SOS_URGENT", "🚨", "Терміново!", 0xFFEF4444, 0xFF991B1B);
+
+    val wirePayload: String
+        get() = "${ChatMessage.STICKER_PREFIX}$code"
+
+    companion object {
+        fun fromCode(code: String): PulseSticker? =
+            entries.firstOrNull { it.code.equals(code, ignoreCase = true) }
     }
 }
 

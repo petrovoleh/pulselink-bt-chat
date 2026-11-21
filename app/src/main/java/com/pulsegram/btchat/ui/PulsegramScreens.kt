@@ -116,6 +116,7 @@ import com.pulsegram.btchat.model.DeliveryStatus
 import com.pulsegram.btchat.model.EnergyStats
 import com.pulsegram.btchat.model.NearbyPeer
 import com.pulsegram.btchat.model.PowerPresetMode
+import com.pulsegram.btchat.model.PulseSticker
 import com.pulsegram.btchat.model.RadioConfig
 import com.pulsegram.btchat.model.RadioPulseState
 import com.pulsegram.btchat.ui.theme.TgAccentCyan
@@ -183,6 +184,7 @@ fun PulsegramApp(
             config = config,
             onBack = { viewModel.closeConversation() },
             onSendMessage = { text -> viewModel.sendMessage(convId, text) },
+            onSendSticker = { sticker -> viewModel.sendStickerMessage(convId, sticker) },
             onSendPhotoUri = { uri -> viewModel.sendCompressedPhoto(convId, uri) },
             onSendLocation = { lat, lon -> viewModel.sendLocationMessage(convId, lat, lon) },
             onSendSos = { note, lat, lon -> viewModel.sendSosMessage(convId, note, lat, lon) },
@@ -1031,6 +1033,7 @@ private fun TelegramChatDetailScreen(
     config: RadioConfig,
     onBack: () -> Unit,
     onSendMessage: (String) -> Unit,
+    onSendSticker: (PulseSticker) -> Unit,
     onSendPhotoUri: (Uri) -> Unit,
     onSendLocation: (Double, Double) -> Unit,
     onSendSos: (String, Double?, Double?) -> Unit,
@@ -1044,6 +1047,7 @@ private fun TelegramChatDetailScreen(
 
     var inputText by rememberSaveable { mutableStateOf("") }
     var showAttachDialog by remember { mutableStateOf(false) }
+    var showStickerTray by rememberSaveable { mutableStateOf(false) }
     var showSosDialog by remember { mutableStateOf(false) }
     var showClearChatConfirm by remember { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
@@ -1221,61 +1225,95 @@ private fun TelegramChatDetailScreen(
                     .navigationBarsPadding()
                     .imePadding()
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                ) {
-                    // Rich Attachment Button (Camera / Gallery / Offline GPS / SOS)
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(TgSurfaceCard)
-                            .clickable {
-                                showAttachDialog = true
-                            }
-                    ) {
-                        Text(text = "📎", fontSize = 20.sp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AnimatedVisibility(visible = showStickerTray) {
+                        PulseStickerPickerTray(
+                            onSelectSticker = { sticker ->
+                                onSendSticker(sticker)
+                                showStickerTray = false
+                            },
+                            onClose = { showStickerTray = false }
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        placeholder = {
-                            Text(
-                                if (isE2eeActive) "🔒 Зашифроване повідомлення..." else "Повідомлення, фото або GPS...",
-                                color = TgTextSecondary,
-                                fontSize = 14.sp
-                            )
-                        },
-                        maxLines = 4,
-                        shape = RoundedCornerShape(22.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        contentAlignment = Alignment.Center,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (inputText.isNotBlank()) TgPrimaryBlue else TgSurfaceCard
-                            )
-                            .clickable(enabled = inputText.isNotBlank()) {
-                                onSendMessage(inputText)
-                                inputText = ""
-                            }
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Надіслати",
-                            tint = Color.White
+                        // Rich Attachment Button (Camera / Gallery / Offline GPS / SOS)
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(TgSurfaceCard)
+                                .clickable {
+                                    showStickerTray = false
+                                    showAttachDialog = true
+                                }
+                        ) {
+                            Text(text = "📎", fontSize = 19.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Sticker Picker Toggle Button
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(if (showStickerTray) TgPrimaryBlue.copy(alpha = 0.28f) else TgSurfaceCard)
+                                .border(
+                                    width = if (showStickerTray) 1.dp else 0.dp,
+                                    color = if (showStickerTray) TgPrimaryBlue else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    showStickerTray = !showStickerTray
+                                }
+                        ) {
+                            Text(text = "😊", fontSize = 19.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = {
+                                Text(
+                                    if (isE2eeActive) "🔒 Зашифровано..." else "Текст, 😊 стікер або 📷...",
+                                    color = TgTextSecondary,
+                                    fontSize = 14.sp
+                                )
+                            },
+                            maxLines = 4,
+                            shape = RoundedCornerShape(22.dp),
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (inputText.isNotBlank()) TgPrimaryBlue else TgSurfaceCard
+                                )
+                                .clickable(enabled = inputText.isNotBlank()) {
+                                    onSendMessage(inputText)
+                                    inputText = ""
+                                }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Надіслати",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -1337,7 +1375,7 @@ private fun TelegramChatDetailScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = TgPrimaryBlue),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("📸 Фото з камери (480px)", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("📸 Фото з камери (HD 800px)", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                     Button(
                         onClick = {
@@ -1349,7 +1387,17 @@ private fun TelegramChatDetailScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = TgSurfaceHeader),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("🖼️ Вибрати фото з галереї", color = TgAccentCyan, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("🖼️ Фото з галереї (HD 800px)", color = TgAccentCyan, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                    Button(
+                        onClick = {
+                            showAttachDialog = false
+                            showStickerTray = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = TgSurfaceHeader),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("😊 Відкрити панель стікерів", color = TgCodedPurple, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                     Button(
                         onClick = {
@@ -1629,6 +1677,95 @@ private fun DateDividerChip(timestamp: Long) {
     }
 }
 
+@Composable
+private fun PulseStickerPickerTray(
+    onSelectSticker: (PulseSticker) -> Unit,
+    onClose: () -> Unit
+) {
+    val rows = remember { PulseSticker.entries.chunked(4) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(TgSurfaceCard)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "😊 Стікери PulseLink (миттєва доставка 1 пакетом)",
+                color = TgAccentCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Закрити ✕",
+                color = TgTextSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { onClose() }
+                    .padding(4.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            rows.forEach { rowStickers ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    rowStickers.forEach { stk ->
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(68.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            Color(stk.colorStart).copy(alpha = 0.85f),
+                                            Color(stk.colorEnd).copy(alpha = 0.9f)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    0.5.dp,
+                                    Color.White.copy(alpha = 0.2f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable { onSelectSticker(stk) }
+                                .padding(4.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(text = stk.emoji, fontSize = 26.sp)
+                                Text(
+                                    text = stk.title,
+                                    color = Color.White,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TelegramMessageBubble(
@@ -1652,6 +1789,7 @@ private fun TelegramMessageBubble(
         } else 0
     }
     val coords = remember(message.text) { message.parsedCoordinates }
+    val sticker = remember(message.text) { message.parsedSticker }
 
     val bubbleBg = when {
         message.isSosMessage -> Color(0xFF5D1419)
@@ -1712,6 +1850,55 @@ private fun TelegramMessageBubble(
                 }
 
                 when {
+                    sticker != null -> {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .width(176.dp)
+                                .height(132.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            Color(sticker.colorStart),
+                                            Color(sticker.colorEnd)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color.White.copy(alpha = 0.24f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .padding(10.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = sticker.emoji,
+                                    fontSize = 52.sp
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color.Black.copy(alpha = 0.28f))
+                                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = sticker.title,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     decodedPhoto != null -> {
                         val ratio = (decodedPhoto.width.toFloat() / decodedPhoto.height.coerceAtLeast(1).toFloat())
                             .coerceIn(0.5f, 2.2f)

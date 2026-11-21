@@ -207,9 +207,15 @@ object PulsePacketCodec {
         senderSupportsCoded: Boolean,
         sentViaCodedSet: Boolean,
         rollingSeq: Int = 0,
-        maxNickBytes: Int = 24
+        maxNickBytes: Int = 24,
+        l2capPsm: Int = 0
     ): ByteArray {
         val nickBytes = trimUtf8Bytes(senderNickname.trim().ifEmpty { "User" }, maxNickBytes)
+        val psmBytes = if (l2capPsm > 0) {
+            byteArrayOf(((l2capPsm ushr 8) and 0xFF).toByte(), (l2capPsm and 0xFF).toByte())
+        } else {
+            ByteArray(0)
+        }
         return buildFrame(
             type = PacketType.BEACON,
             senderSupportsCoded = senderSupportsCoded,
@@ -221,13 +227,13 @@ object PulsePacketCodec {
             chunkIndex = 0,
             totalChunks = 1,
             nickBytes = nickBytes,
-            chunkBytes = ByteArray(0)
+            chunkBytes = psmBytes
         )
     }
 
     /**
-     * Encodes a compact 33-byte compressed P-256 EC Public Key broadcast frame so nearby peers
-     * automatically establish AES-128-GCM End-to-End Encryption without any user setup!
+     * Encodes a compact 33-byte compressed P-256 EC Public Key broadcast frame (+ optional 2-byte L2CAP PSM)
+     * so nearby peers automatically establish AES-128-GCM End-to-End Encryption and high-speed L2CAP photo transfer!
      */
     fun encodeKeyExchangeFrame(
         senderNodeId: Int,
@@ -235,9 +241,19 @@ object PulsePacketCodec {
         compressedPubKey33: ByteArray,
         senderSupportsCoded: Boolean,
         sentViaCodedSet: Boolean,
-        rollingSeq: Int = 0
+        rollingSeq: Int = 0,
+        l2capPsm: Int = 0
     ): ByteArray {
         val nickBytes = trimUtf8Bytes(senderNickname.trim().ifEmpty { "User" }, 24)
+        val payload = if (l2capPsm > 0) {
+            ByteArray(compressedPubKey33.size + 2).also {
+                System.arraycopy(compressedPubKey33, 0, it, 0, compressedPubKey33.size)
+                it[compressedPubKey33.size] = ((l2capPsm ushr 8) and 0xFF).toByte()
+                it[compressedPubKey33.size + 1] = (l2capPsm and 0xFF).toByte()
+            }
+        } else {
+            compressedPubKey33
+        }
         return buildFrame(
             type = PacketType.KEY_EXCHANGE,
             senderSupportsCoded = senderSupportsCoded,
@@ -249,8 +265,25 @@ object PulsePacketCodec {
             chunkIndex = 0,
             totalChunks = 1,
             nickBytes = nickBytes,
-            chunkBytes = compressedPubKey33
+            chunkBytes = payload
         )
+    }
+
+    fun extractL2capPsm(decoded: DecodedFrame): Int {
+        val bytes = decoded.payloadBytes
+        return when (decoded.type) {
+            PacketType.BEACON -> {
+                if (bytes.size >= 2) {
+                    ((bytes[0].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+                } else 0
+            }
+            PacketType.KEY_EXCHANGE -> {
+                if (bytes.size >= 35) {
+                    ((bytes[33].toInt() and 0xFF) shl 8) or (bytes[34].toInt() and 0xFF)
+                } else 0
+            }
+            else -> 0
+        }
     }
 
     /**
