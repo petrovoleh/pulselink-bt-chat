@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Deep Emerald-Slate Google Play Safe Background -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M0,0h108v108h-108z" />
+    <!-- Outer radar grid ring -->
+    <path
+        android:fillColor="#14B8A6"
+        android:fillAlpha="0.14"
+        android:pathData="M54,54m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0" />
+    <!-- Inner glow circle -->
+    <path
+        android:fillColor="#06B6D4"
+        android:fillAlpha="0.22"
+        android:pathData="M54,54m-31,0a31,31 0,1 1,62 0a31,31 0,1 1,-62 0" />
+</vector>
